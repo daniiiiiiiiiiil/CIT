@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
+import "../styles/result.scss";
 
 const API = "http://localhost:5000";
 
@@ -127,23 +128,12 @@ export default function ResultPage() {
         window.print();
     };
 
-    const handleRestart = () => {
-        navigate("/test");
+    const handleGoToCategories = () => {
+        navigate("/categories");
     };
 
-    const handleLogout = async () => {
-        const token = localStorage.getItem("token");
-        if (token) {
-            try {
-                await axios.post(`${API}/api/logout`, {}, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-            } catch {
-                // ignore
-            }
-        }
-        localStorage.removeItem("token");
-        navigate("/");
+    const handleGoToProfile = () => {
+        navigate("/profile");
     };
 
     if (loading) return (
@@ -218,17 +208,17 @@ export default function ResultPage() {
                         <div className="certificate__seal"> ЦИТ </div>
                     </div>
                     <button className="btn-secondary" onClick={handlePrint}>
-                        🖨 Распечатать сертификат
+                        Распечатать сертификат
                     </button>
                 </div>
             )}
 
             <div className="result-actions">
-                <button className="btn-primary" onClick={handleRestart}>
-                    Пройти ещё раз
+                <button className="btn-primary" onClick={handleGoToCategories}>
+                     К списку тестов
                 </button>
-                <button className="btn-ghost" onClick={handleLogout}>
-                    Выйти
+                <button className="btn-ghost" onClick={handleGoToProfile}>
+                     Мой профиль
                 </button>
             </div>
         </div>

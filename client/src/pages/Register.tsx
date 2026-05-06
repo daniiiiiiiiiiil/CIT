@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import "../styles/App.scss";
+import "../styles/auth.scss";
+
 
 const API = "http://localhost:5000";
 
@@ -38,8 +39,11 @@ export default function Register() {
         if (!validateForm()) return;
         setLoading(true);
         try {
-            await axios.post(`${API}/api/register`, { email, password, name });
-            navigate("/verify", { state: { email } });
+            const res = await axios.post(`${API}/api/register`, { email, password, name });
+            if (res.data.token) {
+                localStorage.setItem("token", res.data.token);
+            }
+            navigate("/categories");
         } catch (err) {
             const apiError = err as ApiError;
             setError(apiError.response?.data?.message || "Ошибка регистрации");

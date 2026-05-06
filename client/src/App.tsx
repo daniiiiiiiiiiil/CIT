@@ -1,11 +1,13 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import CategoriesPage from "./pages/CategoriesPage";
 import TestPage from "./pages/TestPage";
 import AdminPage from "./pages/AdminPage";
 import ResultPage from "./pages/ResultPage";
+import ProfilePage from "./pages/ProfilePage";
 import ErrorPage from "./pages/ErrorPage";
-import "./styles/App.scss";
+
 
 function App() {
     return (
@@ -13,9 +15,11 @@ function App() {
             <Routes>
                 <Route path="/" element={<Login />} />
                 <Route path="/register" element={<Register />} />
-                <Route path="/test" element={<TestPage />} />
+                <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/test/:id" element={<TestPage />} />
                 <Route path="/result/:id" element={<ResultPage />} />
-                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/admin/*" element={<AdminPage />} />
                 <Route path="*" element={<ErrorPage />} />
             </Routes>
         </BrowserRouter>

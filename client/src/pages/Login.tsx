@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import type { CredentialResponse } from "@react-oauth/google";
 import axios from "axios";
-import "../styles/App.scss";
+import "../styles/auth.scss";
 
 const API = "http://localhost:5000";
 
@@ -49,7 +49,7 @@ export default function Login() {
         try {
             const res = await axios.post<AuthResponse>(`${API}/api/login`, { email, password });
             localStorage.setItem("token", res.data.token);
-            navigate(res.data.user.isAdmin ? "/admin" : "/test");
+            navigate(res.data.user.isAdmin ? "/admin" : "/categories");
         } catch (err) {
             const apiError = err as ApiError;
             setError(apiError.response?.data?.message || "Ошибка входа");
@@ -65,7 +65,7 @@ export default function Login() {
                 token: credentialResponse.credential,
             });
             localStorage.setItem("token", res.data.token);
-            navigate(res.data.user.isAdmin ? "/admin" : "/test");
+            navigate(res.data.user.isAdmin ? "/admin" : "/categories");
         } catch (err) {
             const apiError = err as ApiError;
             setError(apiError.response?.data?.message || "Ошибка Google");

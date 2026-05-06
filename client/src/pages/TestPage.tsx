@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
+import "../styles/test.scss";
 
 const API = "http://localhost:5000";
 
@@ -18,12 +19,16 @@ interface Answer {
 }
 
 export default function TestPage() {
+    const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const categoryId = parseInt(id || "0");
+
     const [questions, setQuestions] = useState<Question[]>([]);
     const [answers, setAnswers] = useState<Answer[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [categoryName, setCategoryName] = useState("");
 
     useEffect(() => {
         const token = localStorage.getItem("token");
@@ -32,38 +37,37 @@ export default function TestPage() {
             return;
         }
 
-        const fetchQuestions = async () => {
+        const fetchData = async () => {
             try {
-                const res = await axios.get<Question[]>(`${API}/api/questions`, {
+                const questionsRes = await axios.get(`${API}/api/categories/${categoryId}/questions`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                setQuestions(res.data);
-                setAnswers(res.data.map(q => ({ questionId: q.id, selectedAnswers: [] })));
+                setQuestions(questionsRes.data);
+                setAnswers(questionsRes.data.map((q: Question) => ({
+                    questionId: q.id,
+                    selectedAnswers: []
+                })));
+
+                const categoriesRes = await axios.get(`${API}/api/categories`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const category = categoriesRes.data.find((c: any) => c.id === categoryId);
+                setCategoryName(category?.name || "Тест");
             } catch (error) {
                 console.error(error);
-                const mockQuestions: Question[] = [
-                    {
-                        id: 1,
-                        text: "Что такое цифровая грамотность?",
-                        type: "single",
-                        competence: "Цифровая грамотность",
-                        answers: [
-                            { id: 1, text: "Умение пользоваться компьютером" },
-                            { id: 2, text: "Способность эффективно использовать цифровые технологии" },
-                            { id: 3, text: "Знание языков программирования" },
-                            { id: 4, text: "Умение создавать сайты" }
-                        ]
-                    },
-                    // Add more mock questions as needed
-                ];
-                setQuestions(mockQuestions);
-                setAnswers(mockQuestions.map(q => ({ questionId: q.id, selectedAnswers: [] })));
+                alert("Ошибка загрузки вопросов");
+                navigate("/categories");
             } finally {
                 setLoading(false);
             }
         };
-        fetchQuestions();
-    }, [navigate]);
+
+        if (categoryId) {
+            fetchData();
+        } else {
+            navigate("/categories");
+        }
+    }, [categoryId, navigate]);
 
     const handleAnswer = (answerId: number) => {
         const currentQ = questions[currentIndex];
@@ -104,10 +108,15 @@ export default function TestPage() {
             return;
         }
 
+        const allAnswered = answers.every(a => a.selectedAnswers.length > 0);
+        if (!allAnswered && !window.confirm("Вы ответили не на все вопросы. Отправить тест?")) {
+            return;
+        }
+
         setSubmitting(true);
         try {
             const res = await axios.post(`${API}/api/test/submit`,
-                { answers },
+                { answers, categoryId },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             navigate(`/result/${res.data.resultId}`);
@@ -134,6 +143,10 @@ export default function TestPage() {
         navigate("/");
     };
 
+    const getLetter = (index: number) => {
+        return String.fromCharCode(65 + index);
+    };
+
     if (loading) {
         return (
             <div className="test-loading">
@@ -145,9 +158,14 @@ export default function TestPage() {
 
     if (questions.length === 0) {
         return (
-            <div className="test-error">
-                <p>Нет доступных вопросов</p>
-                <button onClick={handleLogout}>Выйти</button>
+            <div className="test-empty">
+                <p>Нет доступных вопросов в этом тесте</p>
+                <button className="btn-primary" onClick={() => navigate("/categories")}>
+                    Вернуться к выбору теста
+                </button>
+                <button className="btn-ghost" onClick={handleLogout}>
+                    Выйти
+                </button>
             </div>
         );
     }
@@ -156,32 +174,48 @@ export default function TestPage() {
     const currentAnswer = answers[currentIndex];
     const isSelected = (answerId: number) => currentAnswer.selectedAnswers.includes(answerId);
     const progress = ((currentIndex + 1) / questions.length) * 100;
+    const answeredCount = answers.filter(a => a.selectedAnswers.length > 0).length;
+    const isLastQuestion = currentIndex === questions.length - 1;
 
     return (
         <div className="test-page">
+            <div className="test-counter">
+                <span>{currentIndex + 1}</span>/{questions.length}
+            </div>
+
+            <div className="test-progress">
+                <div className="test-progress__bar" style={{ width: `${progress}%` }} />
+            </div>
+
             <div className="test-header">
-                <div className="test-progress">
-                    <div className="test-progress__bar" style={{ width: `${progress}%` }} />
+                <div className="test-header__title">{categoryName}</div>
+                <div className="test-header__info">
+                    <div className="test-header__question-number">
+                        Question {currentIndex + 1} of {questions.length}
+                    </div>
                 </div>
-                <div className="test-counter">
-                    Вопрос {currentIndex + 1} из {questions.length}
-                </div>
-                <button className="test-logout" onClick={handleLogout}>Выйти</button>
             </div>
 
             <div className="test-content">
-                <div className="test-competence">{currentQ.competence}</div>
-                <div className="test-question">{currentQ.text}</div>
+                <div className="test-question">
+                    <div className="test-question__text">{currentQ.text}</div>
+                    <div className="test-question__sub">Выберите ответ</div>
+                </div>
+
                 <div className="test-answers">
-                    {currentQ.answers.map(answer => (
-                        <label key={answer.id} className="test-answer">
+                    {currentQ.answers.map((answer, idx) => (
+                        <label
+                            key={answer.id}
+                            className={`test-answer ${isSelected(answer.id) ? "selected" : ""}`}
+                        >
                             <input
                                 type={currentQ.type === "single" ? "radio" : "checkbox"}
                                 name="answer"
                                 checked={isSelected(answer.id)}
                                 onChange={() => handleAnswer(answer.id)}
                             />
-                            <span>{answer.text}</span>
+                            <div className="test-answer__letter">{getLetter(idx)}</div>
+                            <div className="test-answer__text">{answer.text}</div>
                         </label>
                     ))}
                 </div>
@@ -193,23 +227,27 @@ export default function TestPage() {
                     onClick={handlePrev}
                     disabled={currentIndex === 0}
                 >
-                    Назад
+                    ‹ Previous
                 </button>
 
-                {currentIndex === questions.length - 1 ? (
+                <div className="test-footer__info">
+                    <span>{answeredCount}</span> of {questions.length} answered
+                </div>
+
+                {isLastQuestion ? (
                     <button
-                        className="test-btn test-btn--submit"
+                        className="test-btn test-btn--next"
                         onClick={handleSubmit}
                         disabled={submitting}
                     >
-                        {submitting ? "Отправка..." : "Завершить"}
+                        {submitting ? "Submitting..." : "Next ›"}
                     </button>
                 ) : (
                     <button
                         className="test-btn test-btn--next"
                         onClick={handleNext}
                     >
-                        Далее
+                        Next ›
                     </button>
                 )}
             </div>
