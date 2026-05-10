@@ -1,29 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GoogleLogin } from "@react-oauth/google";
-import type { CredentialResponse } from "@react-oauth/google";
-import axios from "axios";
+import { authApi } from "../api/auth.api";
+import { LoginForm } from "../components/auth/LoginForm";
+import { AuthCard } from "../components/auth/AuthCard";
+import { GoogleLoginButton } from "../components/auth/GoogleLoginButton";
+import type { ApiError, ValidationErrors } from "../types/auth.types";
 import "../styles/auth.scss";
-
-const API = "http://localhost:5000";
-
-interface AuthResponse {
-    user: {
-        id: number;
-        email: string;
-        name: string;
-        isAdmin?: boolean;
-    };
-    token: string;
-}
-
-interface ApiError {
-    response?: {
-        data?: {
-            message?: string;
-        };
-    };
-}
 
 export default function Login() {
     const navigate = useNavigate();
@@ -31,10 +13,10 @@ export default function Login() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    const [errors, setErrors] = useState<ValidationErrors>({});
 
-    const validateForm = () => {
-        const newErrors: { email?: string; password?: string } = {};
+    const validateForm = (): boolean => {
+        const newErrors: ValidationErrors = {};
         if (!email) newErrors.email = "Email обязателен";
         else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = "Неверный формат email";
         if (!password) newErrors.password = "Пароль обязателен";
@@ -47,9 +29,9 @@ export default function Login() {
         if (!validateForm()) return;
         setLoading(true);
         try {
-            const res = await axios.post<AuthResponse>(`${API}/api/login`, { email, password });
-            localStorage.setItem("token", res.data.token);
-            navigate(res.data.user.isAdmin ? "/admin" : "/categories");
+            const res = await authApi.login({ email, password });
+            authApi.saveToken(res.token);
+            navigate(res.user.isAdmin ? "/admin" : "/categories");
         } catch (err) {
             const apiError = err as ApiError;
             setError(apiError.response?.data?.message || "Ошибка входа");
@@ -58,14 +40,12 @@ export default function Login() {
         }
     };
 
-    const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    const handleGoogleSuccess = async (credential: string) => {
         setLoading(true);
         try {
-            const res = await axios.post<AuthResponse>(`${API}/auth/google`, {
-                token: credentialResponse.credential,
-            });
-            localStorage.setItem("token", res.data.token);
-            navigate(res.data.user.isAdmin ? "/admin" : "/categories");
+            const res = await authApi.googleLogin(credential);
+            authApi.saveToken(res.token);
+            navigate(res.user.isAdmin ? "/admin" : "/categories");
         } catch (err) {
             const apiError = err as ApiError;
             setError(apiError.response?.data?.message || "Ошибка Google");
@@ -74,50 +54,27 @@ export default function Login() {
         }
     };
 
+    const handleGoogleError = () => {
+        setError("Ошибка Google");
+    };
+
     return (
         <div className="app">
-            <div className="card">
-                <div className="header">
-                    <h1>ПрофЦифра Аттестация</h1>
-                    <p>Войдите в свой аккаунт</p>
-                </div>
-
-                {error && <div className="alert error">{error}</div>}
-
-                <form className="form" onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label>Email</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="your@mail.com"
-                            className={errors.email ? "error" : ""}
-                        />
-                        {errors.email && <div className="error-message">{errors.email}</div>}
-                    </div>
-
-                    <div className="form-group">
-                        <label>Пароль</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Введите пароль"
-                            className={errors.password ? "error" : ""}
-                        />
-                        {errors.password && <div className="error-message">{errors.password}</div>}
-                    </div>
-
-                    <button type="submit" disabled={loading}>
-                        {loading ? "Загрузка..." : "Войти"}
-                    </button>
-                </form>
+            <AuthCard title="ПрофЦифра Аттестация" subtitle="Войдите в свой аккаунт" error={error}>
+                <LoginForm
+                    email={email}
+                    password={password}
+                    onEmailChange={setEmail}
+                    onPasswordChange={setPassword}
+                    onSubmit={handleSubmit}
+                    loading={loading}
+                    errors={errors}
+                />
 
                 <div className="divider"><span>ИЛИ</span></div>
 
                 <div className="google-wrapper">
-                    <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError("Ошибка Google")} />
+                    <GoogleLoginButton onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
                 </div>
 
                 <div style={{ textAlign: "center", marginTop: "20px" }}>
@@ -129,7 +86,7 @@ export default function Login() {
                         Забыли пароль?
                     </Link>
                 </div>
-            </div>
+            </AuthCard>
         </div>
     );
 }
