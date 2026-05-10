@@ -422,7 +422,7 @@ const initialTests = [
 ];
 
 async function setupInitialTests(pool) {
-    console.log('📚 Проверка и добавление начальных тестов...');
+    console.log(' Проверка и добавление начальных тестов...');
 
     try {
         for (const test of initialTests) {
@@ -433,7 +433,7 @@ async function setupInitialTests(pool) {
             );
 
             if (existingCategory.rows.length === 0) {
-                console.log(`  ➕ Добавление категории: ${test.name}`);
+                console.log(`   Добавление категории: ${test.name}`);
 
                 // Добавляем компетенцию
                 let competenceId;
@@ -448,7 +448,7 @@ async function setupInitialTests(pool) {
                         [test.competence, `Компетенция: ${test.competence}`]
                     );
                     competenceId = newComp.rows[0].id;
-                    console.log(`    📌 Добавлена компетенция: ${test.competence}`);
+                    console.log(`     Добавлена компетенция: ${test.competence}`);
                 } else {
                     competenceId = existingComp.rows[0].id;
                 }
@@ -459,7 +459,7 @@ async function setupInitialTests(pool) {
                     [test.name, test.description, competenceId]
                 );
                 const categoryId = category.rows[0].id;
-                console.log(`    📁 Категория добавлена с ID: ${categoryId}`);
+                console.log(`     Категория добавлена с ID: ${categoryId}`);
 
                 // Добавляем вопросы и ответы
                 for (let i = 0; i < test.questions.length; i++) {
@@ -476,16 +476,16 @@ async function setupInitialTests(pool) {
                             [questionId, answer.text, answer.isCorrect]
                         );
                     }
-                    console.log(`    ❓ Вопрос ${i + 1}/${test.questions.length} добавлен`);
+                    console.log(`     Вопрос ${i + 1}/${test.questions.length} добавлен`);
                 }
-                console.log(`  ✅ Категория "${test.name}" полностью добавлена (${test.questions.length} вопросов)`);
+                console.log(`   Категория "${test.name}" полностью добавлена (${test.questions.length} вопросов)`);
             } else {
-                console.log(`  ⏭️ Категория уже существует: ${test.name}`);
+                console.log(`   Категория уже существует: ${test.name}`);
             }
         }
-        console.log('✅ Все начальные тесты успешно добавлены!');
+        console.log(' Все начальные тесты успешно добавлены!');
     } catch (error) {
-        console.error('❌ Ошибка при добавлении начальных тестов:', error);
+        console.error(' Ошибка при добавлении начальных тестов:', error);
     }
 }
 

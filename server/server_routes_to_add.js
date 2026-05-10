@@ -17,7 +17,7 @@ app.get("/api/questions", authenticateToken, async (req, res) => {
 });
 
 app.post("/api/test/submit", authenticateToken, async (req, res) => {
-    const { answers } = req.body; // [{questionId, selectedAnswers:[ids]}]
+    const { answers } = req.body;
     const userId = req.user.id;
 
     try {
