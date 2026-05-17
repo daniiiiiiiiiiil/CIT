@@ -4,39 +4,46 @@ services:
     container_name: app_postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres123  # Явно укажите пароль
+      POSTGRES_PASSWORD: postgres123
       POSTGRES_DB: app_database
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d app_database"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   server:
     build: ./server
     container_name: app_server
     environment:
-      NODE_ENV: production
       PORT: 5174
       DB_HOST: postgres
       DB_USER: postgres
-      DB_PASSWORD: postgres123  # Тот же пароль, что и в postgres
+      DB_PASSWORD: postgres123
       DB_NAME: app_database
       DB_PORT: 5432
-      JWT_SECRET: your_jwt_secret_key_here
     ports:
       - "5174:5174"
-    volumes:
-      - ./server:/app
-      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - app_network
+    restart: unless-stopped
+
+  client:
+    build: ./client
+    container_name: app_client
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://195.58.34.42:5174
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

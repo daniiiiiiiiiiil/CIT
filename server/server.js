@@ -25,7 +25,7 @@ app.use(cors({
 }));
 
 // Добавьте обработку preflight запросов
-app.options('*', cors());
+app.options('/*', cors());
 app.use(express.json());
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
