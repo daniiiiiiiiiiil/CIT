@@ -10,12 +10,22 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174',
+    origin: [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5173',
         'http://195.58.34.42:5173',
         'http://195.58.34.42:5174',
-        'http://195.58.34.42',],
-    credentials: true
+        'http://195.58.34.42',
+        // Добавьте ваш домен если есть
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
 }));
+
+// Добавьте обработку preflight запросов
+app.options('*', cors());
 app.use(express.json());
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);

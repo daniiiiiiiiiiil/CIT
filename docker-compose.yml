@@ -1,28 +1,23 @@
-version: '3.8'
-
 services:
-  # PostgreSQL база данных
   postgres:
     image: postgres:15-alpine
     container_name: app_postgres
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-app_database}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123  # Явно укажите пароль
+      POSTGRES_DB: app_database
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./server/initDb.js:/docker-entrypoint-initdb.d/initDb.js:ro
     networks:
       - app_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app_database"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Сервер Node.js
   server:
     build: ./server
     container_name: app_server
@@ -30,10 +25,11 @@ services:
       NODE_ENV: production
       PORT: 5174
       DB_HOST: postgres
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-app_database}
+      DB_USER: postgres
+      DB_PASSWORD: postgres123  # Тот же пароль, что и в postgres
+      DB_NAME: app_database
       DB_PORT: 5432
+      JWT_SECRET: your_jwt_secret_key_here
     ports:
       - "5174:5174"
     volumes:
@@ -44,26 +40,3 @@ services:
         condition: service_healthy
     networks:
       - app_network
-    # Сначала запускаем initDb.js (который закроется), потом сервер
-    command: sh -c "node initDb.js && npm start"
-
-  # Клиент React
-  client:
-    build: ./client
-    container_name: app_client
-    ports:
-      - "5173:5173"  # Фронтенд на 5173
-    depends_on:
-      - server
-    networks:
-      - app_network
-    environment:
-      VITE_API_URL: http://localhost:5174
-
-
-networks:
-  app_network:
-    driver: bridge
-
-volumes:
-  postgres_data:
