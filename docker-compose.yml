@@ -35,7 +35,7 @@ services:
       DB_NAME: ${DB_NAME:-app_database}
       DB_PORT: 5432
     ports:
-      - "3000:3000"
+      - "5000:3000"
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -51,7 +51,7 @@ services:
     build: ./client
     container_name: app_client
     ports:
-      - "80:80"
+      - "80:4173"
     depends_on:
       - server
     networks:
