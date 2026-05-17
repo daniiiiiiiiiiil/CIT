@@ -14,6 +14,6 @@ COPY . .
 # Устанавливаем дополнительные инструменты если нужно
 RUN apk add --no-cache postgresql-client
 
-EXPOSE 3000
+EXPOSE 5174
 
 CMD ["sh", "-c", "echo 'Waiting for postgres...' && node server.js"]
