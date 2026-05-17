@@ -35,7 +35,7 @@ services:
       DB_NAME: ${DB_NAME:-app_database}
       DB_PORT: 5432
     ports:
-      - "5174:5174"  # Бэкенд на 5174
+      - "5174:5174"
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -44,7 +44,8 @@ services:
         condition: service_healthy
     networks:
       - app_network
-    command: sh -c "npm run init-db && npm start"
+    # Сначала запускаем initDb.js (который закроется), потом сервер
+    command: sh -c "node initDb.js && npm start"
 
   # Клиент React
   client:
@@ -58,6 +59,7 @@ services:
       - app_network
     environment:
       VITE_API_URL: http://localhost:5174
+
 
 networks:
   app_network:
