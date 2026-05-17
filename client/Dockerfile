@@ -1,4 +1,3 @@
-# Измените с node:18-alpine на node:20-alpine или node:22-alpine
 FROM node:20-alpine AS build
 
 WORKDIR /app
@@ -17,7 +16,16 @@ RUN npm run build
 
 # Продакшн этап
 FROM node:20-alpine
+
+WORKDIR /app
+
+# Копируем собранные файлы
+COPY --from=build /app/dist ./dist
+
+# Устанавливаем простой HTTP сервер
 RUN npm install -g serve
-COPY --from=build /app/dist /app/dist
-EXPOSE 4173
-CMD ["serve", "-s", "/app/dist", "-l", "4173"]
+
+EXPOSE 5173
+
+# Запускаем serve на порту 5173
+CMD ["serve", "-s", "dist", "-l", "5173"]
