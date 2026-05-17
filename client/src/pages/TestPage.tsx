@@ -138,7 +138,6 @@ export default function TestPage() {
                 <TestQuestion
                     question={currentQ}
                     index={currentIndex}
-                    total={questions.length}
                 />
                 <TestAnswers
                     answers={currentQ.answers}
