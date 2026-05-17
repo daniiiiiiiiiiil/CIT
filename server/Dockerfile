@@ -1,5 +1,4 @@
-# server/Dockerfile
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -17,5 +16,4 @@ RUN apk add --no-cache postgresql-client
 
 EXPOSE 3000
 
-# Ждем PostgreSQL перед запуском
 CMD ["sh", "-c", "echo 'Waiting for postgres...' && node server.js"]
