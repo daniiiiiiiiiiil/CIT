@@ -6,24 +6,24 @@ const createTables = async () => {
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
+                                                 id SERIAL PRIMARY KEY,
+                                                 email VARCHAR(255) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
                 name VARCHAR(255),
                 picture TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+                )
         `);
         console.log(' Таблица users создана');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS sessions (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                                                    id SERIAL PRIMARY KEY,
+                                                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 token VARCHAR(500) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+                )
         `);
         console.log(' Таблица sessions создана');
 
@@ -44,14 +44,30 @@ const createTables = async () => {
                 FOR EACH ROW
                 EXECUTE FUNCTION update_updated_at_column()
         `);
-        console.log('Триггер для updated_at создан');
+        console.log(' Триггер для updated_at создан');
 
-        console.log('Все таблицы успешно созданы!');
+        console.log(' Все таблицы успешно созданы!');
+        console.log(' База данных готова к работе');
+
+        // НЕ вызываем pool.end() здесь, чтобы пул остался открытым для сервера
+
     } catch (error) {
-        console.error('Ошибка при создании таблиц:', error);
-    } finally {
-        await pool.end();
+        console.error( 'Ошибка при создании таблиц:', error);
+        throw error; // Пробрасываем ошибку дальше
     }
 };
 
-createTables();
+// Если запускаем скрипт отдельно (не через require)
+if (require.main === module) {
+    createTables()
+        .then(() => {
+            console.log('Инициализация завершена');
+            process.exit(0);
+        })
+        .catch((error) => {
+            console.error('Инициализация не удалась:', error);
+            process.exit(1);
+        });
+}
+
+module.exports = { createTables };
