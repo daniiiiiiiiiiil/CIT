@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { AuthResponse, LoginCredentials, RegisterCredentials } from "../types/auth.types";
+import type { AuthResponse, LoginCredentials, RegisterCredentials,ForgotPasswordResponse,VerifyTokenResponse,ResetPasswordResponse } from "../types/auth.types";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -18,6 +18,20 @@ export const authApi = {
         const res = await axios.post<AuthResponse>(`${API}/auth/google`, { token });
         return res.data;
     },
+    async forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+    const res = await axios.post<ForgotPasswordResponse>(`${API}/api/forgot-password`, { email });
+    return res.data;
+    },
+
+    async verifyResetToken(token: string): Promise<VerifyTokenResponse> {
+        const res = await axios.post<VerifyTokenResponse>(`${API}/api/verify-reset-token`, { token });
+        return res.data;
+    },
+
+    async resetPassword(token: string, newPassword: string): Promise<ResetPasswordResponse> {
+        const res = await axios.post<ResetPasswordResponse>(`${API}/api/reset-password`, { token, newPassword });
+        return res.data;
+    },
 
     saveToken(token: string): void {
         localStorage.setItem("token", token);
@@ -34,4 +48,5 @@ export const authApi = {
     isAuthenticated(): boolean {
         return !!localStorage.getItem("token");
     }
+    
 };

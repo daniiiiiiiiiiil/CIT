@@ -3,6 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const { OAuth2Client } = require("google-auth-library");
 const pool = require("./db");
 const { setupInitialTests } = require("./initialTests");
@@ -29,6 +31,189 @@ app.options('/*', cors());
 app.use(express.json());
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+const isDev = process.env.NODE_ENV !== 'production';
+
+let transporter = null;
+
+const setupEmailTransporter = () => {
+    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: parseInt(process.env.SMTP_PORT) || 587,
+            secure: process.env.SMTP_SECURE === 'true',
+            auth: {
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS,
+            },
+            tls: {
+                rejectUnauthorized: false
+            }
+        });
+        
+        transporter.verify((error, success) => {
+            if (error) {
+                console.error('Ошибка подключения к SMTP:', error.message);
+                transporter = null;
+            } else {
+                console.log('SMTP настроен и готов к отправке писем');
+            }
+        });
+    } else {
+        console.log('SMTP не настроен. Письма будут выводиться в консоль.');
+        console.log('Для тестирования используйте ссылку из консоли или из ответа API (режим разработки)');
+    }
+};
+
+// Функция отправки email
+const sendResetEmail = async (email, resetUrl, userName = '') => {
+    console.log(`\nПИСЬМО ДЛЯ СБРОСА ПАРОЛЯ`);
+    console.log(`   Кому: ${email}`);
+    console.log(`   Ссылка: ${resetUrl}`);
+    console.log(`   Действительна: 1 час\n`);
+
+    if (!transporter) {
+        console.log('SMTP не настроен. Письмо не отправлено, используйте ссылку выше.');
+        return true;
+    }
+
+    try {
+        const htmlTemplate = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Сброс пароля - ПрофЦифра</title>
+                <style>
+                    body {
+                        font-family: 'Segoe UI', Arial, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        margin: 0;
+                        padding: 0;
+                        background-color: #f5f5f5;
+                    }
+                    .container {
+                        max-width: 600px;
+                        margin: 40px auto;
+                        background: white;
+                        border-radius: 12px;
+                        overflow: hidden;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                    }
+                    .header {
+                        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                        padding: 30px;
+                        text-align: center;
+                    }
+                    .header h1 {
+                        color: #00d4ff;
+                        margin: 0;
+                        font-size: 28px;
+                        letter-spacing: 2px;
+                    }
+                    .header p {
+                        color: #a0a0b0;
+                        margin: 10px 0 0;
+                        font-size: 14px;
+                    }
+                    .content {
+                        padding: 40px 30px;
+                    }
+                    .content h2 {
+                        color: #1a1a2e;
+                        margin-top: 0;
+                        font-size: 24px;
+                    }
+                    .content p {
+                        color: #555;
+                        margin: 15px 0;
+                    }
+                    .button {
+                        display: inline-block;
+                        background: linear-gradient(135deg, #00d4ff 0%, #3a7bd5 100%);
+                        color: white;
+                        text-decoration: none;
+                        padding: 14px 32px;
+                        border-radius: 8px;
+                        margin: 20px 0;
+                        font-weight: 600;
+                    }
+                    .link-box {
+                        background: #f5f5f5;
+                        padding: 12px;
+                        border-radius: 6px;
+                        word-break: break-all;
+                        font-size: 12px;
+                        margin: 15px 0;
+                        border: 1px solid #e0e0e0;
+                    }
+                    .warning {
+                        color: #ff4757;
+                        font-size: 12px;
+                        margin-top: 20px;
+                        padding-top: 15px;
+                        border-top: 1px solid #eee;
+                    }
+                    .footer {
+                        background: #f8f8f8;
+                        padding: 20px;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #888;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>ПрофЦифра</h1>
+                        <p>Система профессиональной аттестации</p>
+                    </div>
+                    <div class="content">
+                        <h2>Сброс пароля</h2>
+                        <p>Здравствуйте, ${userName || 'пользователь'}!</p>
+                        <p>Вы запросили сброс пароля для вашей учетной записи в системе «ПрофЦифра Аттестация».</p>
+                        <p>Чтобы создать новый пароль, нажмите на кнопку ниже:</p>
+                        
+                        <div style="text-align: center;">
+                            <a href="${resetUrl}" class="button">Сбросить пароль</a>
+                        </div>
+                        
+                        <p>Или скопируйте ссылку в браузер:</p>
+                        <div class="link-box">
+                            ${resetUrl}
+                        </div>
+                        
+                        <div class="warning">
+                             <strong>Важно:</strong> Ссылка действительна в течение 1 часа.<br>
+                            Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.
+                        </div>
+                    </div>
+                    <div class="footer">
+                        <p>&copy; 2024 ПрофЦифра. Все права защищены.</p>
+                        <p>Это автоматическое сообщение, пожалуйста, не отвечайте на него.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const info = await transporter.sendMail({
+            from: `"ПрофЦифра Аттестация" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+            to: email,
+            subject: "Сброс пароля - ПрофЦифра Аттестация",
+            html: htmlTemplate,
+            text: `Для сброса пароля перейдите по ссылке: ${resetUrl}\n\nСсылка действительна 1 час.\n\nЕсли вы не запрашивали сброс пароля, проигнорируйте это письмо.`
+        });
+
+        console.log(`Письмо отправлено на ${email}, ID: ${info.messageId}`);
+        return true;
+    } catch (error) {
+        console.error('Ошибка отправки email:', error.message);
+        return false;
+    }
+};
 
 const scheduleDataCleanup = () => {
     const runCleanup = async () => {
@@ -62,6 +247,15 @@ const scheduleDataCleanup = () => {
             if (deletedSessions.rowCount > 0) {
                 console.log(`Удалено ${deletedSessions.rowCount} устаревших сессий`);
             }
+
+            const deletedResetTokens = await pool.query(`
+                DELETE FROM password_resets
+                WHERE expires_at < NOW()
+            `);
+            
+            if (deletedResetTokens.rowCount > 0) {
+                console.log(`Удалено ${deletedResetTokens.rowCount} просроченных токенов сброса`);
+            }
         } catch (error) {
             console.error('Ошибка при очистке данных:', error);
         }
@@ -78,109 +272,120 @@ const initDatabase = async () => {
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
-                                                 id SERIAL PRIMARY KEY,
-                                                 email VARCHAR(255) UNIQUE NOT NULL,
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
                 name VARCHAR(255),
                 picture TEXT,
                 is_admin BOOLEAN DEFAULT false,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+            )
         `);
-        console.log('Таблица users готова');
+        console.log('Таблица users');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS sessions (
-                                                    id SERIAL PRIMARY KEY,
-                                                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 token VARCHAR(500) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+            )
         `);
-        console.log('Таблица sessions готова');
+        console.log('Таблица sessions');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS competences (
-                                                       id SERIAL PRIMARY KEY,
-                                                       name VARCHAR(255) NOT NULL,
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
                 description TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+            )
         `);
-        console.log('Таблица competences готова');
+        console.log('Таблица competences');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS categories (
-                                                      id SERIAL PRIMARY KEY,
-                                                      name VARCHAR(255) NOT NULL,
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
                 description TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+            )
         `);
-        console.log('Таблица categories готова');
+        console.log('Таблица categories');
 
         await pool.query(`
             ALTER TABLE categories ADD COLUMN IF NOT EXISTS competence_id INTEGER REFERENCES competences(id) ON DELETE SET NULL
         `);
-        console.log('Колонка competence_id добавлена');
+        console.log('Колонка competence_id');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS questions (
-                                                     id SERIAL PRIMARY KEY,
-                                                     text TEXT NOT NULL,
-                                                     type VARCHAR(20) DEFAULT 'single',
+                id SERIAL PRIMARY KEY,
+                text TEXT NOT NULL,
+                type VARCHAR(20) DEFAULT 'single',
                 category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+            )
         `);
-        console.log('Таблица questions готова');
+        console.log('Таблица questions');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS answers (
-                                                   id SERIAL PRIMARY KEY,
-                                                   question_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
+                id SERIAL PRIMARY KEY,
+                question_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
                 text TEXT NOT NULL,
                 is_correct BOOLEAN DEFAULT false,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+            )
         `);
-        console.log('Таблица answers готова');
+        console.log('Таблица answers');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS test_results (
-                                                        id SERIAL PRIMARY KEY,
-                                                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
                 total_correct INTEGER DEFAULT 0,
                 total_questions INTEGER DEFAULT 0,
                 percent NUMERIC(5,2) DEFAULT 0,
                 passed BOOLEAN DEFAULT false,
                 finished_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+            )
         `);
-        console.log('Таблица test_results готова');
+        console.log('Таблица test_results');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_answers (
-                                                        id SERIAL PRIMARY KEY,
-                                                        result_id INTEGER REFERENCES test_results(id) ON DELETE CASCADE,
+                id SERIAL PRIMARY KEY,
+                result_id INTEGER REFERENCES test_results(id) ON DELETE CASCADE,
                 question_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
                 selected_answer_ids INTEGER[] DEFAULT '{}'
-                )
+            )
         `);
-        console.log('Таблица user_answers готова');
+        console.log('Таблица user_answers');
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS certificates (
-                                                        id SERIAL PRIMARY KEY,
-                                                        user_id INTEGER REFERENCES users(id),
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
                 result_id INTEGER REFERENCES test_results(id) ON DELETE CASCADE,
                 cert_number VARCHAR(100) UNIQUE,
                 issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+            )
         `);
-        console.log('Таблица certificates готова');
+        console.log('Таблица certificates');
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                token VARCHAR(255) UNIQUE NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('Таблица password_resets');
 
         await pool.query(`
             CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -199,13 +404,14 @@ const initDatabase = async () => {
                 FOR EACH ROW
                 EXECUTE FUNCTION update_updated_at_column()
         `);
+        console.log('Триггер updated_at');
 
         const createDefaultAdmin = async () => {
             try {
                 const adminCheck = await pool.query("SELECT id FROM users WHERE is_admin = true LIMIT 1");
 
                 if (adminCheck.rows.length === 0) {
-                    console.log('👑 Создание администратора по умолчанию...');
+                    console.log('Создание администратора по умолчанию...');
 
                     const defaultAdminEmail = "admin@cit.ru";
                     const defaultAdminPassword = "Admin123!";
@@ -261,17 +467,19 @@ const requireAdmin = async (req, res, next) => {
     }
 };
 
+// ==================== АУТЕНТИФИКАЦИЯ ====================
+
 app.post("/api/register", async (req, res) => {
     const { email, password, name } = req.body;
     if (!email || !password) return res.status(400).json({ message: "Email и пароль обязательны" });
     if (password.length < 6) return res.status(400).json({ message: "Пароль должен быть минимум 6 символов" });
     try {
-        const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email.toLowerCase()]);
         if (existingUser.rows.length > 0) return res.status(400).json({ message: "Пользователь уже существует" });
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
             "INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id, email, name, is_admin",
-            [email, hashedPassword, name || email.split('@')[0]]
+            [email.toLowerCase(), hashedPassword, name || email.split('@')[0]]
         );
         const user = result.rows[0];
         const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '24h' });
@@ -287,7 +495,7 @@ app.post("/api/login", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: "Email и пароль обязательны" });
     try {
-        const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        const result = await pool.query("SELECT * FROM users WHERE email = $1", [email.toLowerCase()]);
         if (result.rows.length === 0) return res.status(401).json({ message: "Неверный email или пароль" });
         const user = result.rows[0];
         const validPassword = await bcrypt.compare(password, user.password);
@@ -325,6 +533,142 @@ app.get("/api/me", authenticateToken, async (req, res) => {
     }
 });
 
+// ==================== ВОССТАНОВЛЕНИЕ ПАРОЛЯ ====================
+
+app.post("/api/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ message: "Email обязателен" });
+    }
+    
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+        return res.status(400).json({ message: "Неверный формат email" });
+    }
+    
+    try {
+        const userResult = await pool.query(
+            "SELECT id, email, name FROM users WHERE email = $1",
+            [email.toLowerCase()]
+        );
+        
+        if (userResult.rows.length === 0) {
+            return res.json({ 
+                message: "Если пользователь с таким email существует, вы получите письмо для сброса пароля" 
+            });
+        }
+        
+        const user = userResult.rows[0];
+        
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 1);
+        
+        await pool.query(
+            "DELETE FROM password_resets WHERE user_id = $1",
+            [user.id]
+        );
+        
+        await pool.query(
+            "INSERT INTO password_resets (user_id, token, expires_at) VALUES ($1, $2, $3)",
+            [user.id, resetToken, expiresAt]
+        );
+        
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+        
+        await sendResetEmail(user.email, resetUrl, user.name);
+        
+        const responseData = { 
+            message: "Если пользователь с таким email существует, вы получите письмо для сброса пароля" 
+        };
+        
+        if (isDev) {
+            responseData.resetLink = resetUrl;
+            responseData.debug = true;
+            console.log(`Режим разработки: ссылка для сброса отправлена в ответе API`);
+        }
+        
+        res.json(responseData);
+    } catch (error) {
+        console.error("Ошибка при запросе сброса пароля:", error);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+app.post("/api/verify-reset-token", async (req, res) => {
+    const { token } = req.body;
+    
+    if (!token) {
+        return res.status(400).json({ message: "Токен обязателен" });
+    }
+    
+    try {
+        const result = await pool.query(
+            `SELECT pr.*, u.email, u.name
+             FROM password_resets pr
+             JOIN users u ON u.id = pr.user_id
+             WHERE pr.token = $1 AND pr.expires_at > NOW()`,
+            [token]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(400).json({ message: "Недействительная или просроченная ссылка", valid: false });
+        }
+        
+        res.json({ valid: true, email: result.rows[0].email });
+    } catch (error) {
+        console.error("Ошибка проверки токена:", error);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+app.post("/api/reset-password", async (req, res) => {
+    const { token, newPassword } = req.body;
+    
+    if (!token) {
+        return res.status(400).json({ message: "Токен обязателен" });
+    }
+    
+    if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ message: "Пароль должен быть минимум 6 символов" });
+    }
+    
+    try {
+        const resetResult = await pool.query(
+            `SELECT pr.*, u.id as user_id 
+             FROM password_resets pr
+             JOIN users u ON u.id = pr.user_id
+             WHERE pr.token = $1 AND pr.expires_at > NOW()`,
+            [token]
+        );
+        
+        if (resetResult.rows.length === 0) {
+            return res.status(400).json({ message: "Недействительная или просроченная ссылка" });
+        }
+        
+        const userId = resetResult.rows[0].user_id;
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        await pool.query(
+            "UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+            [hashedPassword, userId]
+        );
+        
+        await pool.query("DELETE FROM password_resets WHERE user_id = $1", [userId]);
+        await pool.query("DELETE FROM sessions WHERE user_id = $1", [userId]);
+        
+        console.log(`Пароль успешно изменен для пользователя ID: ${userId}`);
+        
+        res.json({ message: "Пароль успешно изменен" });
+    } catch (error) {
+        console.error("Ошибка при сбросе пароля:", error);
+        res.status(500).json({ message: "Ошибка сервера" });
+    }
+});
+
+// ==================== GOOGLE AUTH ====================
+
 app.post("/auth/google", async (req, res) => {
     const { token } = req.body;
     try {
@@ -353,6 +697,8 @@ app.post("/auth/google", async (req, res) => {
         res.status(401).json({ message: "Invalid token" });
     }
 });
+
+// ==================== АДМИН-ПАНЕЛЬ ====================
 
 app.get("/api/admin/users", authenticateToken, requireAdmin, async (req, res) => {
     try {
@@ -400,6 +746,7 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, async (req, 
         await pool.query("DELETE FROM user_answers WHERE result_id IN (SELECT id FROM test_results WHERE user_id = $1)", [userId]);
         await pool.query("DELETE FROM certificates WHERE user_id = $1", [userId]);
         await pool.query("DELETE FROM test_results WHERE user_id = $1", [userId]);
+        await pool.query("DELETE FROM password_resets WHERE user_id = $1", [userId]);
         await pool.query("DELETE FROM users WHERE id = $1", [userId]);
         res.json({ message: "Пользователь удален" });
     } catch (error) {
@@ -407,6 +754,8 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, async (req, 
         res.status(500).json({ message: "Ошибка сервера" });
     }
 });
+
+// ==================== КАТЕГОРИИ И ТЕСТЫ ====================
 
 app.get("/api/categories", authenticateToken, async (req, res) => {
     try {
@@ -455,6 +804,8 @@ app.get("/api/competences", async (req, res) => {
         res.status(500).json({ message: "Ошибка сервера" });
     }
 });
+
+// ==================== ПРОХОЖДЕНИЕ ТЕСТОВ ====================
 
 app.post("/api/test/submit", authenticateToken, async (req, res) => {
     const { answers, categoryId } = req.body;
@@ -613,6 +964,8 @@ app.get("/api/user/results", authenticateToken, async (req, res) => {
     }
 });
 
+// ==================== АДМИН-СТАТИСТИКА ====================
+
 app.get("/api/admin/stats", authenticateToken, requireAdmin, async (req, res) => {
     try {
         const [users, questions, tests, avg, failed] = await Promise.all([
@@ -634,6 +987,8 @@ app.get("/api/admin/stats", authenticateToken, requireAdmin, async (req, res) =>
         res.status(500).json({ message: "Ошибка сервера" });
     }
 });
+
+// ==================== АДМИН-КАТЕГОРИИ ====================
 
 app.get("/api/admin/categories", authenticateToken, requireAdmin, async (req, res) => {
     try {
@@ -703,6 +1058,8 @@ app.delete("/api/admin/categories/:id", authenticateToken, requireAdmin, async (
         res.status(500).json({ message: "Ошибка сервера" });
     }
 });
+
+// ==================== АДМИН-ВОПРОСЫ ====================
 
 app.get("/api/admin/questions", authenticateToken, requireAdmin, async (req, res) => {
     try {
@@ -798,6 +1155,8 @@ app.delete("/api/admin/questions/:id", authenticateToken, requireAdmin, async (r
     }
 });
 
+// ==================== АДМИН-КОМПЕТЕНЦИИ ====================
+
 app.post("/api/admin/competences", authenticateToken, requireAdmin, async (req, res) => {
     const { name } = req.body;
     try {
@@ -840,6 +1199,8 @@ app.delete("/api/admin/competences/:id", authenticateToken, requireAdmin, async 
         res.status(500).json({ message: "Ошибка сервера" });
     }
 });
+
+// ==================== АДМИН-СЕРТИФИКАТЫ ====================
 
 app.get("/api/admin/certificates", authenticateToken, requireAdmin, async (req, res) => {
     try {
@@ -978,10 +1339,20 @@ app.get("/api/admin/certificates/:id", authenticateToken, requireAdmin, async (r
     }
 });
 
+
 const startServer = async () => {
     await initDatabase();
+    setupEmailTransporter();
     scheduleDataCleanup();
-    app.listen(PORT, () => console.log(` Сервер запущен ${PORT}`));
+    
+    console.log(`\nСервер запущен на порту ${PORT}`);
+    console.log(`Режим: ${isDev ? 'РАЗРАБОТКА' : 'PRODUCTION'}`);
+    
+    if (isDev) {
+        console.log(` В режиме разработки API возвращает прямую ссылку для сброса пароля`);
+    }
+    
+    app.listen(PORT, () => {});
 };
 
 startServer();
