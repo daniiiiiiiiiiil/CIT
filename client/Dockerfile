@@ -1,5 +1,4 @@
-# client/Dockerfile
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
@@ -16,14 +15,17 @@ COPY . .
 RUN npm run build
 
 # Продакшн этап
-FROM nginx:alpine
+FROM node:20-alpine
 
-# Копируем собранные файлы из этапа build
-COPY --from=build /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-# Копируем конфигурацию nginx (опционально)
-# COPY nginx.conf /etc/nginx/nginx.conf
+# Копируем собранные файлы
+COPY --from=build /app/dist ./dist
 
-EXPOSE 80
+# Устанавливаем простой HTTP сервер
+RUN npm install -g serve
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 5173
+
+# Запускаем serve на порту 5173
+CMD ["serve", "-s", "dist", "-l", "5173"]
