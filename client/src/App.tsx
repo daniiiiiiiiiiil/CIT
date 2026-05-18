@@ -7,7 +7,8 @@ import AdminPage from "./pages/AdminPage";
 import ResultPage from "./pages/ResultPage";
 import ProfilePage from "./pages/ProfilePage";
 import ErrorPage from "./pages/ErrorPage";
-
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function App() {
     return (
@@ -15,6 +16,8 @@ function App() {
             <Routes>
                 <Route path="/" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password/:token" element={<ResetPassword />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/test/:id" element={<TestPage />} />
                 <Route path="/result/:id" element={<ResultPage />} />
