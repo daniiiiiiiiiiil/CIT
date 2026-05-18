@@ -48,5 +48,4 @@ export const authApi = {
     isAuthenticated(): boolean {
         return !!localStorage.getItem("token");
     }
-    
 };
