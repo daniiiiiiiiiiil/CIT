@@ -7,8 +7,8 @@ export interface CompetenceResult {
 
 export interface TestResult {
     resultId: number;
-    totalCorrect: number;
-    totalQuestions: number;
+    totalCorrect: number;    
+    totalQuestions: number;  
     percent: number;
     passed: boolean;
     certificateNumber: string | null;

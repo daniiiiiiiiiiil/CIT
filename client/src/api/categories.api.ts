@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { Category, User } from "../types/categories.types";
 
-const API = "http://localhost:5000";
+const API = window.location.hostname === "localhost" ? "http://localhost:5000" : "http://85.239.49.128:5000";
 
 const getToken = () => localStorage.getItem("token");
 const getHeaders = () => ({ Authorization: `Bearer ${getToken()}` });

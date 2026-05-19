@@ -9,6 +9,7 @@ import ProfilePage from "./pages/ProfilePage";
 import ErrorPage from "./pages/ErrorPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import PrintCertificatePage from "./pages/PrintCertificatePage";
 
 function App() {
     return (
@@ -21,6 +22,7 @@ function App() {
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/test/:id" element={<TestPage />} />
                 <Route path="/result/:id" element={<ResultPage />} />
+                <Route path="/print-certificate" element={<PrintCertificatePage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/admin/*" element={<AdminPage />} />
                 <Route path="*" element={<ErrorPage />} />

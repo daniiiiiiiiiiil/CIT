@@ -12,6 +12,7 @@ import { TestProgress } from "../components/test/TestProgress";
 import { TestNavigation } from "../components/test/TestNavigation";
 import { LoadingState } from "../components/test/LoadingState";
 import { EmptyState } from "../components/test/EmptyState";
+import { Timer } from "../components/test/Timer"; 
 import type { Question, UserAnswer } from "../types/test.types";
 import "../styles/test.scss";
 
@@ -27,6 +28,10 @@ export default function TestPage() {
     const [submitting, setSubmitting] = useState(false);
     const [categoryName, setCategoryName] = useState("");
     const [selected, setSelected] = useState(false);
+    
+    // Состояния для таймера
+    const [timeLeft, setTimeLeft] = useState<number>(0);
+    const [timeExpired, setTimeExpired] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem("token");
@@ -44,6 +49,11 @@ export default function TestPage() {
                 })));
                 const category = categoriesData.find((c: { id: number }) => c.id === categoryId);
                 setCategoryName(category?.name || "Test");
+                
+                // Устанавливаем время: количество вопросов * 60 секунд
+                const totalTime = questionsData.length * 60;
+                setTimeLeft(totalTime);
+                
             } catch (error) {
                 console.error(error);
                 alert("Ошибка загрузки вопросов");
@@ -56,6 +66,42 @@ export default function TestPage() {
         if (categoryId) fetchData();
         else navigate("/categories");
     }, [categoryId, navigate]);
+
+    // Таймер
+    useEffect(() => {
+        if (loading || timeLeft <= 0 || submitting || timeExpired) return;
+
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    setTimeExpired(true);
+                    // Автоматическая отправка теста при окончании времени
+                    handleAutoSubmit();
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [loading, timeLeft, submitting, timeExpired]);
+
+    // Автоматическая отправка при истечении времени
+    const handleAutoSubmit = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        try {
+            const res = await testApi.submitTest(answers, categoryId);
+            navigate(`/result/${res.resultId}`);
+        } catch (err) {
+            console.error(err);
+            alert("Время вышло! Ошибка при отправке теста");
+            navigate("/categories");
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     const handleAnswer = (answerId: number) => {
         const currentQ = questions[currentIndex];
@@ -105,12 +151,31 @@ export default function TestPage() {
 
     if (loading) return <LoadingState />;
     if (questions.length === 0) return <EmptyState />;
+    
+    // Если время вышло, показываем сообщение
+    if (timeExpired) {
+        return (
+            <div className="test-timeout">
+                <div className="test-timeout__icon">⏰</div>
+                <h2>Время вышло!</h2>
+                <p>Тест будет автоматически отправлен</p>
+                <div className="test-timeout__spinner" />
+            </div>
+        );
+    }
 
     const currentQ = questions[currentIndex];
     const currentAnswer = answers[currentIndex];
     const answeredCount = answers.filter(a => a.selectedAnswers.length > 0).length;
     const isLast = currentIndex === questions.length - 1;
     const answeredStatus = answers.map(a => a.selectedAnswers.length > 0);
+    
+    // Форматирование времени
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
 
     return (
         <div className="test-page">
@@ -134,11 +199,30 @@ export default function TestPage() {
                 categoryName={categoryName}
             />
 
+            {/* Таймер */}
+            <div className="test-timer">
+                <div className={`test-timer__clock ${timeLeft < 60 ? "warning" : ""}`}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span>{formatTime(timeLeft)}</span>
+                </div>
+                <div className="test-timer__bar">
+                    <div 
+                        className="test-timer__bar-fill" 
+                        style={{ 
+                            width: `${(timeLeft / (questions.length * 60)) * 100}%`,
+                            backgroundColor: timeLeft < 60 ? "#ff4757" : "#00d4ff"
+                        }} 
+                    />
+                </div>
+            </div>
+
             <main className="test-content">
                 <TestQuestion
                     question={currentQ}
                     index={currentIndex}
-                    total={questions.length}
                 />
                 <TestAnswers
                     answers={currentQ.answers}

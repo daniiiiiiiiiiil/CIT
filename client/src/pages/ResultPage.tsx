@@ -118,12 +118,6 @@ export default function ResultPage() {
                         </div>
 
                         <Certificate result={result} userName={userName} date={date} />
-
-                        <button className="res-btn res-btn--ghost"
-                                onClick={() => window.print()}
-                                style={{ marginTop: 20 }}>
-                            <span>⬇</span> Распечатать сертификат
-                        </button>
                     </div>
                 )}
 

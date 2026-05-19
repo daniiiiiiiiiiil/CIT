@@ -394,36 +394,39 @@ const initDatabase = async () => {
         console.log('Триггер updated_at');
 
         const createDefaultAdmin = async () => {
-            try {
-                const adminCheck = await pool.query("SELECT id FROM users WHERE is_admin = true LIMIT 1");
+        try {
+            const adminCheck = await pool.query("SELECT id, email FROM users WHERE is_admin = true LIMIT 1");
 
-                if (adminCheck.rows.length === 0) {
-                    console.log('Создание администратора по умолчанию...');
+            if (adminCheck.rows.length === 0) {
+                console.log('Создание администратора по умолчанию...');
 
-                    const defaultAdminEmail = "admin@cit.ru";
-                    const defaultAdminPassword = "Admin123!";
-                    const defaultAdminName = "Администратор ЦИТ";
+                const defaultAdminEmail = "admin@cit.ru";
+                const defaultAdminPassword = "Admin123!";
+                const defaultAdminName = "Администратор ЦИТ";
 
-                    const hashedPassword = await bcrypt.hash(defaultAdminPassword, 10);
+                const hashedPassword = await bcrypt.hash(defaultAdminPassword, 10);
 
-                    await pool.query(
-                        `INSERT INTO users (email, password, name, is_admin)
-                         VALUES ($1, $2, $3, true)`,
-                        [defaultAdminEmail, hashedPassword, defaultAdminName]
-                    );
+                await pool.query(
+                    `INSERT INTO users (email, password, name, is_admin)
+                    VALUES ($1, $2, $3, true)`,
+                    [defaultAdminEmail, hashedPassword, defaultAdminName]
+                );
 
-                    console.log(`Администратор создан:
-                         Email: ${defaultAdminEmail}
-                         Пароль: ${defaultAdminPassword}
-                         Имя: ${defaultAdminName}`);
-                    console.log('Обязательно измените пароль после первого входа!');
-                } else {
-                    console.log('Администратор уже существует');
-                }
-            } catch (error) {
-                console.error('Ошибка создания администратора:', error);
+                console.log('Администратор создан:');
+                console.log(`   Email: ${defaultAdminEmail}`);
+                console.log(`   Пароль:{defaultAdminPassword}`);
+                console.log(`   Имя: ${defaultAdminName}`);
+            } else {
+                const adminEmail = adminCheck.rows[0].email;
+                console.log('Администратор уже существует:');
+                console.log(`Email: admin@cit.ru`);
+                console.log(`Пароль по умолчанию: Admin123!`);
+                console.log('Если забыли пароль — используйте восстановление через email');
             }
-        };
+        } catch (error) {
+            console.error('Ошибка создания администратора:', error);
+        }
+    };
 
         await createDefaultAdmin();
         await setupInitialTests(pool);
@@ -793,44 +796,73 @@ app.get("/api/competences", async (req, res) => {
 });
 
 // ==================== ПРОХОЖДЕНИЕ ТЕСТОВ ====================
-
 app.post("/api/test/submit", authenticateToken, async (req, res) => {
     const { answers, categoryId } = req.body;
     const userId = req.user.id;
 
     try {
         const questionsRes = await pool.query(`
-            SELECT q.id, array_agg(a.id) filter (where a.is_correct) as correct_ids
+            SELECT 
+                q.id, 
+                q.type,
+                array_agg(a.id) filter (where a.is_correct) as correct_ids
             FROM questions q
-                     LEFT JOIN answers a ON a.question_id = q.id
+                LEFT JOIN answers a ON a.question_id = q.id
             WHERE q.category_id = $1
-            GROUP BY q.id
+            GROUP BY q.id, q.type
         `, [categoryId]);
 
         if (questionsRes.rows.length === 0) {
             return res.status(400).json({ message: "Нет вопросов в этой категории" });
         }
 
-        const questionsMap = Object.fromEntries(
-            questionsRes.rows.map(q => [q.id, (q.correct_ids || []).map(Number)])
-        );
         const totalQuestions = questionsRes.rows.length;
-        let totalCorrect = 0;
+        let totalScore = 0;      
+        let maxPossibleScore = 0; 
 
-        for (const ans of answers) {
-            const correct = questionsMap[ans.questionId] || [];
-            const selected = (ans.selectedAnswers || []).map(Number);
-            const isCorrect = correct.length === selected.length && correct.every(id => selected.includes(id));
-            if (isCorrect) totalCorrect++;
+        const questionsMap = new Map();
+        for (const q of questionsRes.rows) {
+            questionsMap.set(q.id, {
+                type: q.type,
+                correctIds: (q.correct_ids || []).map(Number)
+            });
+            
+            const questionMaxScore = q.type === 'multiple' ? 2 : 1;
+            maxPossibleScore += questionMaxScore;
         }
 
-        const percent = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+        for (const ans of answers) {
+            const question = questionsMap.get(ans.questionId);
+            if (!question) continue;
+            
+            const correctIds = question.correctIds;
+            const selectedIds = (ans.selectedAnswers || []).map(Number);
+            const questionMaxScore = question.type === 'multiple' ? 2 : 1;
+            
+            let isCorrect = false;
+            
+            if (question.type === 'multiple') {
+                isCorrect = correctIds.length === selectedIds.length && 
+                           correctIds.length > 0 && 
+                           correctIds.every(id => selectedIds.includes(id));
+            } else {
+                isCorrect = selectedIds.length === 1 && 
+                           correctIds.length === 1 && 
+                           selectedIds[0] === correctIds[0];
+            }
+            
+            if (isCorrect) {
+                totalScore += questionMaxScore;
+            }
+        }
+
+        const percent = maxPossibleScore > 0 ? Math.round((totalScore / maxPossibleScore) * 100) : 0;
         const passed = percent >= 80;
 
         const resultRes = await pool.query(
             `INSERT INTO test_results (user_id, category_id, total_correct, total_questions, percent, passed)
              VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [userId, categoryId, totalCorrect, totalQuestions, percent, passed]
+            [userId, categoryId, totalScore, maxPossibleScore, percent, passed]
         );
         const resultId = resultRes.rows[0].id;
 
@@ -850,7 +882,14 @@ app.post("/api/test/submit", authenticateToken, async (req, res) => {
             );
         }
 
-        res.json({ resultId, percent, passed, certificateNumber });
+        res.json({ 
+            resultId, 
+            totalScore,      
+            maxPossibleScore, 
+            percent, 
+            passed, 
+            certificateNumber 
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Ошибка сервера" });
@@ -870,13 +909,17 @@ app.get("/api/test/result/:id", authenticateToken, async (req, res) => {
         if (!r.rows[0]) return res.status(404).json({ message: "Не найдено" });
         const result = r.rows[0];
 
+        // Получаем ответы пользователя с типами вопросов
         const userAnswersRes = await pool.query(`
-            SELECT ua.question_id, ua.selected_answer_ids,
-                   COALESCE(c.name, 'Без компетенции') as competence
+            SELECT 
+                ua.question_id, 
+                ua.selected_answer_ids,
+                q.type as question_type,
+                COALESCE(c.name, 'Без компетенции') as competence
             FROM user_answers ua
-                     JOIN questions q ON q.id = ua.question_id
-                     JOIN categories cat ON cat.id = q.category_id
-                     LEFT JOIN competences c ON c.id = cat.competence_id
+                JOIN questions q ON q.id = ua.question_id
+                JOIN categories cat ON cat.id = q.category_id
+                LEFT JOIN competences c ON c.id = cat.competence_id
             WHERE ua.result_id = $1
         `, [resultId]);
 
@@ -890,18 +933,33 @@ app.get("/api/test/result/:id", authenticateToken, async (req, res) => {
                 competenceMap.set(competenceName, { total: 0, correct: 0 });
             }
             const comp = competenceMap.get(competenceName);
-            comp.total++;
+            
+            // Максимальный балл за вопрос (1 или 2)
+            const questionMaxScore = row.question_type === 'multiple' ? 2 : 1;
+            comp.total += questionMaxScore;
 
+            // Получаем правильные ответы для вопроса
             const correctAnswersRes = await pool.query(
                 "SELECT array_agg(id) as correct_ids FROM answers WHERE question_id = $1 AND is_correct = true",
                 [row.question_id]
             );
             const correctIds = (correctAnswersRes.rows[0]?.correct_ids || []).map(Number);
             const selectedIds = (row.selected_answer_ids || []).map(Number);
-            const isCorrect = correctIds.length === selectedIds.length &&
-                correctIds.length > 0 &&
-                correctIds.every(id => selectedIds.includes(id));
-            if (isCorrect) comp.correct++;
+            
+            let isCorrect = false;
+            if (row.question_type === 'multiple') {
+                isCorrect = correctIds.length === selectedIds.length &&
+                           correctIds.length > 0 &&
+                           correctIds.every(id => selectedIds.includes(id));
+            } else {
+                isCorrect = selectedIds.length === 1 &&
+                           correctIds.length === 1 &&
+                           selectedIds[0] === correctIds[0];
+            }
+            
+            if (isCorrect) {
+                comp.correct += questionMaxScore;
+            }
         }
 
         const competences = [...competenceMap.entries()].map(([name, data]) => ({
