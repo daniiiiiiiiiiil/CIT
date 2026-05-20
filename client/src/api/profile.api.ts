@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { UserProfile, TestResult } from "../types/profile.types";
 
-const API = window.location.hostname === "localhost" ? "http://localhost:5000" : "http://5.42.121.83:5000";
+const API = "http://5.42.121.83:5000";
 
 const getToken = () => localStorage.getItem("token");
 const getHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
