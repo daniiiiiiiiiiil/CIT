@@ -1,6 +1,6 @@
 // pages/ResetPassword.tsx
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { authApi } from "../api/auth.api";
 import "../styles/auth.scss";
 
