@@ -12,7 +12,6 @@ import { TestProgress } from "../components/test/TestProgress";
 import { TestNavigation } from "../components/test/TestNavigation";
 import { LoadingState } from "../components/test/LoadingState";
 import { EmptyState } from "../components/test/EmptyState";
-import { Timer } from "../components/test/Timer"; 
 import type { Question, UserAnswer } from "../types/test.types";
 import "../styles/test.scss";
 

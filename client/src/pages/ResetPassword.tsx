@@ -6,7 +6,6 @@ import "../styles/auth.scss";
 
 export default function ResetPassword() {
     const { token } = useParams<{ token: string }>();
-    const navigate = useNavigate();
     
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");

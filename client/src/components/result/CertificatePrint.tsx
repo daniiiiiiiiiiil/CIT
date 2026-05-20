@@ -1,6 +1,5 @@
 // src/components/result/CertificatePrint.tsx
 import { useEffect } from "react";
-import { useParams } from "react-router-dom";
 
 interface CertificatePrintProps {
     userName: string;
