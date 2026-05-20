@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { AuthResponse, LoginCredentials, RegisterCredentials,ForgotPasswordResponse,VerifyTokenResponse,ResetPasswordResponse } from "../types/auth.types";
 
-const API = window.location.hostname === "localhost" ? "http://localhost:5000" : "http://85.239.49.128:5000";
+const API = window.location.hostname === "localhost" ? "http://localhost:5000" : "http://5.42.121.83:5000";
 
 export const authApi = {
     async login(credentials: LoginCredentials): Promise<AuthResponse> {
